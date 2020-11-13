@@ -1,0 +1,5 @@
+.metals/
+.vscode/
+fftw/codeletgen/.bsp
+fftw/codeletgen/project
+fftw/codeletgen/target

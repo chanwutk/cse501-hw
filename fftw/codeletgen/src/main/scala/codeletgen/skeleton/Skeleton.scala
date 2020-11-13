@@ -9,6 +9,22 @@ sealed trait Operations[T] {
   def mult(a: T, b: T): T
 }
 
+sealed trait AstNode {
+  def exec[T](o: Operations[T]): T
+}
+final case class AddNode(a: AstNode, b: AstNode) extends AstNode {
+  def exec[T](o: Operations[T]) = o.add(a.exec(o), b.exec(o))
+}
+final case class MultNode(a: AstNode, b: AstNode) extends AstNode {
+  def exec[T](o: Operations[T]) = o.mult(a.exec(o), b.exec(o))
+}
+final case class ConstNode(c: Int) extends AstNode {
+  def exec[T](o: Operations[T]) = o.const(c)
+}
+final case class LoadNode(i: Int) extends AstNode {
+  def exec[T](o: Operations[T]) = o.load(i)
+}
+
 object OperationsInstances {
   // The semantics for direct execution of our DSL programs.
 
@@ -29,6 +45,13 @@ object OperationsInstances {
     def const(c: Int): Print = c.toString
     def mult(a: Print, b: Print): Print = s"($a * $b)"
     def load(i: Int): Print = env(i)
+  }
+
+  def AstNodeOps() = new Operations[AstNode] {
+    def add(a: AstNode, b: AstNode): AstNode = AddNode(a, b)
+    def mult(a: AstNode, b: AstNode): AstNode = MultNode(a, b)
+    def const(c: Int): AstNode = ConstNode(c)
+    def load(i: Int): AstNode = LoadNode(i)
   }
 }
 
@@ -81,20 +104,35 @@ object Test extends App {
   import OperationsInstances._
 
   // instantiate the direct semantics and the printing semantics
-  val exI = new SimpleExamples()(IntOps( Map(1->1, 2->2, 3->3, 4->4) ))
-  val exP = new SimpleExamples()(PrintOps( i=>s"input[$i]" ) )
+  val intOps = IntOps( Map(1->1, 2->2, 3->3, 4->4) )
+  val printOps = PrintOps( i=>s"input[$i]" )
+  val exI = new SimpleExamples()(intOps)
+  val exP = new SimpleExamples()(printOps)
+  val exA = new SimpleExamples()(AstNodeOps())
 
   // evaluate all examples under both semantics
 
   println( exI.expr1 )
   println( exP.expr1 )
+  println( exA.expr1 )
+  println( exA.expr1.exec(intOps) )
+  println( exA.expr1.exec(printOps) )
 
   println( exI.expr2 )
   println( exP.expr2 )
+  println( exA.expr2 )
+  println( exA.expr2.exec(intOps) )
+  println( exA.expr2.exec(printOps) )
 
   println( exI.pow2n )
   println( exP.pow2n )
+  println( exA.pow2n )
+  println( exA.pow2n.exec(intOps) )
+  println( exA.pow2n.exec(printOps) )
 
   println( exI.load )
   println( exP.load )
+  println( exA.load )
+  println( exA.load.exec(intOps) )
+  println( exA.load.exec(printOps) )
 }
