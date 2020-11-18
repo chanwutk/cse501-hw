@@ -13,7 +13,7 @@ package codeletgen.skeleton.fft
 
 import cats.implicits.{catsStdShowForVector, toShow}
 import cats.Show
-
+import spire.algebra.{Eq, Field, Trig}
 import spire.implicits._
 import spire.math.prime.{Factors, isPrime}
 import spire.math.{Complex, abs}
@@ -35,12 +35,128 @@ object showForComplex {
       case (_, _) => a + " - " + b + "i"
     }
   })
+
+  implicit val doubleShow: Show[Complex[(Double, String, Int)]] = Show.show(c => Complex[Double](c.real._1, c.imag._1).toString)
 }
 
 import showForComplex._
 
+object GenInstance {
+  type T = (Double, String, Int)
+
+  var idx: Int = 0
+
+  def init(): Unit = {
+    idx = 0
+  }
+
+  def toGen[T1](x: Complex[T1]): Complex[T] = {
+    (x.real, x.imag) match {
+      case (real: Double, imag: Double) => Complex((real, s"$real", -1), (imag, s"$imag", -1))
+      case (real: String, imag: String) => Complex((Double.NaN, real, -1), (Double.NaN, imag, -1))
+      case (_, _) => Complex((Double.NaN, "Unknown", -1), (Double.NaN, "Unknown", -1))
+    }
+  }
+
+  private def _print(x: T): Unit = {
+    x match {
+      case (_, s, -1) => print(s)
+      case (_, _, i) => print(s"temp$i")
+    }
+  }
+
+  private def printTmp(): Unit = {
+    idx += 1
+    print(s"  temp$idx = ")
+  }
+
+  private def unary(a: T, fn_str: String, fn: Double => Double): T = {
+    printTmp()
+    print(s"$fn_str(")
+    _print(a)
+    println(");")
+    (fn(a._1), s"$fn_str(${a._2})", idx)
+  }
+
+  private def binary(a: T, b: T, fn_str: String, fn: (Double, Double) => Double): T = {
+    printTmp()
+    print(s"$fn_str(")
+    _print(a)
+    print(", ")
+    _print(b)
+    println(");")
+    (fn(a._1, b._1), s"$fn_str(${a._2}, ${b._2})", idx)
+  }
+
+  def binary_op(a: T, b: T, op_str: String, op: (Double, Double) => Double): T = {
+    printTmp()
+    _print(a)
+    print(s" $op_str ")
+    _print(b)
+    println(";")
+    (op(a._1, b._1), s"(${a._2}) $op_str (${b._2})", idx)
+  }
+
+  implicit def GenField: Field[T] = new Field[T] {
+    override def zero: T = (0.0, "0.0", -1)
+    override def one: T = (1.0, "1.0", -1)
+    override def gcd(a: T, b: T)(implicit ev: Eq[T]): T = binary(a, b, "gcd", spire.math.gcd[Double])
+    override def lcm(a: T, b: T)(implicit ev: Eq[T]): T = binary(a, b, "lcm", spire.math.lcm[Double])
+    override def div(x: T, y: T): T = binary_op(x, y, "/", (a, b) => a / b)
+    override def plus(x: T, y: T): T = binary_op(x, y, "+", (a, b) => a + b)
+    override def times(x: T, y: T): T = binary_op(x, y, "*", (a, b) => a * b)
+
+    override def negate(x: T): T = {
+      x match {
+        case (v, s, -1) => (-v, s"-($s)", -1)
+        case (v, s, _) =>
+          printTmp()
+          print("-")
+          _print(x)
+          println(";")
+          (-v, s"-($s)", idx)
+      }
+    }
+
+  }
+
+  implicit def GenTrig: Trig[T] = new Trig[T] {
+    override def e: T = (spire.math.e, s"${spire.math.e}", -1)
+    override def pi: T = (spire.math.pi, s"${spire.math.pi}", -1)
+    override def exp(a: T): T = unary(a, "exp", spire.math.exp)
+    override def expm1(a: T): T = unary(a, "expm1", spire.math.expm1)
+    override def log(a: T): T = unary(a, "log", spire.math.log)
+    override def log1p(a: T): T = unary(a, "log1p", spire.math.log1p)
+    override def sin(a: T): T = unary(a, "sin", spire.math.sin)
+    override def cos(a: T): T = unary(a, "cos", spire.math.cos)
+    override def tan(a: T): T = unary(a, "tan", spire.math.tan)
+    override def sinh(a: T): T = unary(a, "sinh", spire.math.sinh)
+    override def cosh(a: T): T = unary(a, "cosh", spire.math.cosh)
+    override def tanh(a: T): T = unary(a, "tanh", spire.math.tanh)
+    override def asin(a: T): T = unary(a, "asin", spire.math.asin)
+    override def acos(a: T): T = unary(a, "acos", spire.math.acos)
+    override def atan(a: T): T = unary(a, "atan", spire.math.atan)
+    override def atan2(y: T, x: T): T = binary(y, x, "atan2", spire.math.atan2)
+
+    override def toRadians(a: T): T = {
+      printTmp()
+      _print(a)
+      println(s" * ${spire.math.pi} / 180.0;")
+      (spire.math.toRadians(a._1), s"${a._2} * ${spire.math.pi} / 180.0", idx)
+    }
+    override def toDegrees(a: T): T = {
+      printTmp()
+      _print(a)
+      println(s" * 180.0 / ${spire.math.pi};")
+      (spire.math.toDegrees(a._1), s"${a._2} * 180.0 / ${spire.math.pi}", idx)
+    }
+  }
+}
+
 object FFT {
-  type T = Complex[Double]
+  import GenInstance._
+
+  type T = Complex[(Double, String, Int)]
   // arrays are modeled as functions from indices to values
   type Arr = Int => T
 
@@ -82,13 +198,42 @@ object FFT {
           // val cij = Complex[Double] (scala.math.cos(2*Pi*i*j/n), -scala.math.sin(2*Pi*i*j/n))
           X(j) * cij
         })
-        .foldLeft(Complex[Double](0))(_ + _) // sum the list of terms
+        .foldLeft(toGen(Complex[Double](0)))(_ + _) // sum the list of terms
   }
 
 }
 
 object FFT_Test extends App {
   import FFT._
+  import GenInstance._
+
+  def gen(len: Int, Y: Arr): Vector[FFT.T] = {
+    init()
+    println("struct complex { double re, im; };")
+    println
+    println(s"void generatedCode(struct complex in[$len], struct complex out[$len]) {")
+    val res = Vector.tabulate(X.length)(Y)
+    res.zipWithIndex.foreach{case (c, idx) =>
+      println(s"  out[$idx].re = temp${c.real._3};")
+      println(s"  out[$idx].im = temp${c.imag._3};")
+    }
+    println("}")
+    res
+  }
+
+  val hr = "----------------------------------------------------------------------"
+  def title(str: String): Unit = {
+    println
+    println
+    println
+    println
+    println(hr)
+    println((" " * ((hr.length / 2) - (str.length / 2))) + str)
+    println(hr)
+    println
+  }
+
+  def XStr(n: Int): Vector[Complex[String]] = (0 until n).toVector.map(i => Complex(s"in[$i].re", s"in[$i].im"))
 
   // X4 is the example from wikipedia on DFT
   val X4 = Vector(
@@ -107,7 +252,10 @@ object FFT_Test extends App {
     Complex(0.0,0), Complex(0.0,2)
   )
 
-  val X = X10  // choose your input vector here
+  val X = XStr(4).map(c => toGen(c))  // choose your input vector here
+//  val X = X4.map(c => toGen(c))  // choose your input vector here
+//  val X = X6.map(c => toGen(c))  // choose your input vector here
+//  val X = X10.map(c => toGen(c))  // choose your input vector here
 
   val Y       = fft   (X.length)(X(_))(1)  // compute with CooleyTukey, when applicable
   val Ydirect = direct(X.length)(X(_))(1)
@@ -116,10 +264,16 @@ object FFT_Test extends App {
   val Zdirect = direct(X.length)(Ydirect(_))(-1)
 
   println(X.show)
-  println
-  println(Vector.tabulate(X.length)(Y).show)
-  println(Vector.tabulate(X.length)(Ydirect).show)
-  println
-  println(Vector.tabulate(X.length)(Z).show)
-  println(Vector.tabulate(X.length)(Zdirect).show)
+
+  title("Y")
+  println(gen(X.length, Y).show)
+
+  title("Ydirect")
+  println(gen(X.length, Ydirect).show)
+
+  title("Z")
+  println(gen(X.length, Z).show)
+
+  title("Zdirect")
+  println(gen(X.length, Zdirect).show)
 }
