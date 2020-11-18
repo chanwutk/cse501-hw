@@ -42,11 +42,10 @@ object showForComplex {
 import showForComplex._
 
 object GenInstance {
-  type T = (Double, String, Int)
+  private type T = (Double, String, Int)
+  private var idx: Int = 0
 
-  var idx: Int = 0
-
-  def init(): Unit = {
+  def reset(): Unit = {
     idx = 0
   }
 
@@ -56,45 +55,6 @@ object GenInstance {
       case (real: String, imag: String) => Complex((Double.NaN, real, -1), (Double.NaN, imag, -1))
       case (_, _) => Complex((Double.NaN, "Unknown", -1), (Double.NaN, "Unknown", -1))
     }
-  }
-
-  private def _print(x: T): Unit = {
-    x match {
-      case (_, s, -1) => print(s)
-      case (_, _, i) => print(s"temp$i")
-    }
-  }
-
-  private def printTmp(): Unit = {
-    idx += 1
-    print(s"  temp$idx = ")
-  }
-
-  private def unary(a: T, fn_str: String, fn: Double => Double): T = {
-    printTmp()
-    print(s"$fn_str(")
-    _print(a)
-    println(");")
-    (fn(a._1), s"$fn_str(${a._2})", idx)
-  }
-
-  private def binary(a: T, b: T, fn_str: String, fn: (Double, Double) => Double): T = {
-    printTmp()
-    print(s"$fn_str(")
-    _print(a)
-    print(", ")
-    _print(b)
-    println(");")
-    (fn(a._1, b._1), s"$fn_str(${a._2}, ${b._2})", idx)
-  }
-
-  def binary_op(a: T, b: T, op_str: String, op: (Double, Double) => Double): T = {
-    printTmp()
-    _print(a)
-    print(s" $op_str ")
-    _print(b)
-    println(";")
-    (op(a._1, b._1), s"(${a._2}) $op_str (${b._2})", idx)
   }
 
   implicit def GenField: Field[T] = new Field[T] {
@@ -110,14 +70,13 @@ object GenInstance {
       x match {
         case (v, s, -1) => (-v, s"-($s)", -1)
         case (v, s, _) =>
-          printTmp()
+          new_temp()
           print("-")
           _print(x)
           println(";")
           (-v, s"-($s)", idx)
       }
     }
-
   }
 
   implicit def GenTrig: Trig[T] = new Trig[T] {
@@ -139,17 +98,57 @@ object GenInstance {
     override def atan2(y: T, x: T): T = binary(y, x, "atan2", spire.math.atan2)
 
     override def toRadians(a: T): T = {
-      printTmp()
+      new_temp()
       _print(a)
       println(s" * ${spire.math.pi} / 180.0;")
       (spire.math.toRadians(a._1), s"${a._2} * ${spire.math.pi} / 180.0", idx)
     }
+
     override def toDegrees(a: T): T = {
-      printTmp()
+      new_temp()
       _print(a)
       println(s" * 180.0 / ${spire.math.pi};")
       (spire.math.toDegrees(a._1), s"${a._2} * 180.0 / ${spire.math.pi}", idx)
     }
+  }
+
+  private def _print(x: T): Unit = {
+    x match {
+      case (_, s, -1) => print(s)
+      case (_, _, i) => print(s"temp$i")
+    }
+  }
+
+  private def new_temp(): Unit = {
+    idx += 1
+    print(s"  double temp$idx = ")
+  }
+
+  private def unary(a: T, fn_str: String, fn: Double => Double): T = {
+    new_temp()
+    print(s"$fn_str(")
+    _print(a)
+    println(");")
+    (fn(a._1), s"$fn_str(${a._2})", idx)
+  }
+
+  private def binary(a: T, b: T, fn_str: String, fn: (Double, Double) => Double): T = {
+    new_temp()
+    print(s"$fn_str(")
+    _print(a)
+    print(", ")
+    _print(b)
+    println(");")
+    (fn(a._1, b._1), s"$fn_str(${a._2}, ${b._2})", idx)
+  }
+
+  private def binary_op(a: T, b: T, op_str: String, op: (Double, Double) => Double): T = {
+    new_temp()
+    _print(a)
+    print(s" $op_str ")
+    _print(b)
+    println(";")
+    (op(a._1, b._1), s"(${a._2}) $op_str (${b._2})", idx)
   }
 }
 
@@ -208,7 +207,7 @@ object FFT_Test extends App {
   import GenInstance._
 
   def gen(len: Int, Y: Arr): Vector[FFT.T] = {
-    init()
+    reset()
     println("struct complex { double re, im; };")
     println
     println(s"void generatedCode(struct complex in[$len], struct complex out[$len]) {")
